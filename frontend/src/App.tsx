@@ -8,10 +8,12 @@ type ActionType = 'explain' | 'fix' | 'optimize'
 function App() {
   const [code, setCode] = useState('')
   const [result, setResult] = useState<ProcessResponse | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<ActionType | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const { theme } = useTheme()
+  const MAX_CHARS = 5000
+
 
   const handleProcess = async (action: ActionType) => {
     if (!code.trim()) {
@@ -19,11 +21,16 @@ function App() {
       return
     }
 
-    setLoading(true)
+    setLoadingAction(action)
     setError(null)
     setResult(null)
     setCopied(false)
 
+    if (code.length > MAX_CHARS) {
+      setError(`Code too large. Max ${MAX_CHARS} characters allowed.`)
+      return
+    }
+    
     try {
       const response = await aiService.processCode({ code, action })
       setResult(response)
@@ -31,7 +38,7 @@ function App() {
       setError('Failed to process code. Please check if Ollama is running on localhost:11434.')
       console.error('API Error:', err)
     } finally {
-      setLoading(false)
+      setLoadingAction(null)
     }
   }
 
@@ -74,7 +81,12 @@ function App() {
             <div className="relative">
               <textarea
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value.length <= MAX_CHARS) {
+                    setCode(e.target.value)
+                  }
+                }}
+                maxLength={MAX_CHARS}
                 placeholder="Paste your code here... (JavaScript, Python, C#, Java, etc.)"
                 className="w-full h-80 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-200 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-slate-400 dark:placeholder-slate-500"
               />
@@ -82,18 +94,21 @@ function App() {
                 {code.length} characters
               </div>
             </div>
-
+            
+            <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              {code.length} / {MAX_CHARS} characters
+            </div>
             {/* Action Buttons */}
             <div className="mt-6 flex flex-wrap gap-3">
               <button
                 onClick={() => handleProcess('explain')}
-                disabled={loading}
+                disabled={loadingAction !== null}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg"
               >
-                {loading ? (
+                {loadingAction === 'explain' ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Processing...
+                    Explaining...
                   </>
                 ) : (
                   <>
@@ -107,13 +122,13 @@ function App() {
 
               <button
                 onClick={() => handleProcess('fix')}
-                disabled={loading}
+                disabled={loadingAction !== null}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg"
               >
-                {loading ? (
+                {loadingAction === 'fix' ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Processing...
+                    Fixing...
                   </>
                 ) : (
                   <>
@@ -127,13 +142,13 @@ function App() {
 
               <button
                 onClick={() => handleProcess('optimize')}
-                disabled={loading}
+                disabled={loadingAction !== null}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg"
               >
-                {loading ? (
+                {loadingAction === 'optimize' ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Processing...
+                    Optimizing...
                   </>
                 ) : (
                   <>
@@ -179,7 +194,7 @@ function App() {
               )}
             </div>
 
-            {loading && !result && (
+            {loadingAction && !result && (
               <div className="h-80 flex items-center justify-center">
                 <div className="text-center">
                   <div className="inline-flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-6">
@@ -190,7 +205,7 @@ function App() {
               </div>
             )}
 
-            {!loading && !result && !error && (
+            {!loadingAction && !result && !error && (
               <div className="h-80 flex items-center justify-center">
                 <div className="text-center text-slate-500 dark:text-slate-400">
                   <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
