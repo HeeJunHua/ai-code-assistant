@@ -18,7 +18,7 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddRateLimiter();
 // Configure AI service (Ollama)
 builder.Services.Configure<AIOptions>(builder.Configuration.GetSection("AI"));
 builder.Services.AddHttpClient<IAIService, AIService>((provider, client) =>
