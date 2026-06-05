@@ -1,6 +1,9 @@
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using AICodeAssistant.Api.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -23,92 +26,138 @@ public class AIService : IAIService
         _logger = logger;
     }
 
-    public async Task<string> ProcessCodeAsync(string code, string action, CancellationToken cancellationToken = default)
+    public async Task<string> ProcessCodeAsync(ProcessRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(code))
+        if (string.IsNullOrWhiteSpace(request.Code))
         {
-            throw new ArgumentException("Code cannot be empty", nameof(code));
+            throw new ArgumentException("Code cannot be empty", nameof(request.Code));
         }
 
-        if (string.IsNullOrWhiteSpace(action))
+        if (string.IsNullOrWhiteSpace(request.Action))
         {
-            throw new ArgumentException("Action cannot be empty", nameof(action));
+            throw new ArgumentException("Action cannot be empty", nameof(request.Action));
         }
 
-        try
-        {
-            // Build the prompt
-            string prompt = $"You are a senior developer. {action} this code:\n{code}";
+        // Build the prompt
+        string prompt = $"You are a senior developer. {request.Action} this code:\n{request.Code}";
 
-            // Create the Ollama request
-            var request = new OllamaRequest
+        // If a custom endpoint is provided, use it (generic OpenAI‑style request)
+        if (!string.IsNullOrWhiteSpace(request.Endpoint))
+        {
+            // Build request payload compatible with OpenAI chat completion API
+            var openAiRequest = new
             {
-                Model = _options.Model,
-                Prompt = prompt,
-                Stream = false,
-                Options = new OllamaOptions
+                model = request.Model ?? _options.Model,
+                messages = new[]
                 {
-                    NumPredict = _options.MaxTokens,
-                    Temperature = _options.Temperature
-                }
+                    new { role = "user", content = prompt }
+                },
+                temperature = _options.Temperature,
+                max_tokens = _options.MaxTokens
             };
 
-            // Serialize the request
-            var jsonOptions = new JsonSerializerOptions
+            var json = JsonSerializer.Serialize(openAiRequest, new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.Endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
             };
-            string requestJson = JsonSerializer.Serialize(request, jsonOptions);
 
-            _logger.LogInformation("Sending request to Ollama API: {Endpoint}", _options.Endpoint);
+            if (!string.IsNullOrWhiteSpace(request.ApiKey))
+            {
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", request.ApiKey);
+            }
 
-            // Send the request
-            var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync(_options.Endpoint, content, cancellationToken);
-
-            // Read the response
-            string responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogInformation("Sending request to custom AI endpoint: {Endpoint}", request.Endpoint);
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("Ollama API request failed with status {StatusCode}: {Response}", 
+                _logger.LogError("Custom AI request failed with status {StatusCode}: {Response}",
                     response.StatusCode, responseJson);
-                throw new Exception($"Ollama API request failed: {response.StatusCode}. Response: {responseJson}");
+                throw new Exception($"Custom AI request failed: {response.StatusCode}. Response: {responseJson}");
             }
 
-            // Deserialize the response
-            var ollamaResponse = JsonSerializer.Deserialize<OllamaResponse>(responseJson, jsonOptions);
-
-            if (ollamaResponse == null)
+            // Try to extract the content from typical OpenAI responses
+            try
             {
-                throw new Exception("Ollama API returned null response");
-            }
+                using var doc = JsonDocument.Parse(responseJson);
+                var root = doc.RootElement;
 
-            if (!ollamaResponse.Done)
+                if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
+                {
+                    var first = choices[0];
+                    // OpenAI style: choices[0].message.content
+                    if (first.TryGetProperty("message", out var message) &&
+                        message.TryGetProperty("content", out var contentProp))
+                    {
+                        return contentProp.GetString() ?? string.Empty;
+                    }
+                    // Older style: choices[0].text
+                    if (first.TryGetProperty("text", out var textProp))
+                    {
+                        return textProp.GetString() ?? string.Empty;
+                    }
+                }
+            }
+            catch (JsonException ex)
             {
-                throw new Exception("Ollama API response not complete");
+                _logger.LogError(ex, "Failed to parse custom AI response JSON");
+                throw new Exception("Failed to parse response from custom AI provider.", ex);
             }
 
-            string result = ollamaResponse.Response;
-            _logger.LogInformation("Ollama processing completed successfully for action: {Action}", action);
+            // Fallback: return raw response
+            return responseJson;
+        }
 
-            return result;
-        }
-        catch (HttpRequestException ex)
+        // Default: Ollama flow (unchanged)
+        var ollamaRequest = new OllamaRequest
         {
-            _logger.LogError(ex, "HTTP error occurred while calling Ollama API");
-            throw new Exception("Failed to connect to Ollama service. Please check if Ollama is running on localhost:11434.", ex);
-        }
-        catch (JsonException ex)
+            Model = _options.Model,
+            Prompt = prompt,
+            Stream = false,
+            Options = new OllamaOptions
+            {
+                NumPredict = _options.MaxTokens,
+                Temperature = _options.Temperature
+            }
+        };
+
+        var jsonOptions = new JsonSerializerOptions
         {
-            _logger.LogError(ex, "JSON parsing error from Ollama API response");
-            throw new Exception("Failed to parse Ollama response. Please try again.", ex);
-        }
-        catch (Exception ex)
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+        string requestJson = JsonSerializer.Serialize(ollamaRequest, jsonOptions);
+
+        _logger.LogInformation("Sending request to Ollama API: {Endpoint}", _options.Endpoint);
+        var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+        var ollamaResponseMsg = await _httpClient.PostAsync(_options.Endpoint, content, cancellationToken);
+        var ollamaResponseJson = await ollamaResponseMsg.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!ollamaResponseMsg.IsSuccessStatusCode)
         {
-            _logger.LogError(ex, "Unexpected error occurred while processing code with Ollama");
-            throw;
+            _logger.LogError("Ollama API request failed with status {StatusCode}: {Response}",
+                ollamaResponseMsg.StatusCode, ollamaResponseJson);
+            throw new Exception($"Ollama API request failed: {ollamaResponseMsg.StatusCode}. Response: {ollamaResponseJson}");
         }
+
+        var ollamaResponse = JsonSerializer.Deserialize<OllamaResponse>(ollamaResponseJson, jsonOptions);
+        if (ollamaResponse == null)
+        {
+            throw new Exception("Ollama API returned null response");
+        }
+
+        if (!ollamaResponse.Done)
+        {
+            throw new Exception("Ollama API response not complete");
+        }
+
+        _logger.LogInformation("Ollama processing completed successfully for action: {Action}", request.Action);
+        return ollamaResponse.Response;
     }
 }
 

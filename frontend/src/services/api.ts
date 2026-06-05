@@ -3,6 +3,9 @@ import axios from 'axios'
 export interface ProcessRequest {
   code: string
   action: 'explain' | 'fix' | 'optimize'
+  endpoint?: string
+  apiKey?: string
+  model?: string
 }
 
 export interface ProcessResponse {

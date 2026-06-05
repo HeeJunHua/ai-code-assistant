@@ -42,7 +42,7 @@ public class AIController : ControllerBase
             _logger.LogInformation("Processing code with action: {Action}", request.Action);
 
             // Process code with AI service
-            string result = await _aiService.ProcessCodeAsync(request.Code, request.Action);
+            string result = await _aiService.ProcessCodeAsync(request);
 
             var response = new ProcessResponse
             {

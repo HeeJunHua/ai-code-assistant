@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { aiService, ProcessResponse } from './services/api'
 import { useTheme } from './context/ThemeContext'
 import { ThemeToggle } from './components/ThemeToggle'
+import ModelConfig from './components/ModelConfig'
 
 type ActionType = 'explain' | 'fix' | 'optimize'
 
@@ -11,6 +12,7 @@ function App() {
   const [loadingAction, setLoadingAction] = useState<ActionType | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [config, setConfig] = useState({ endpoint: '', apiKey: '', model: '' })
   const { theme } = useTheme()
   const MAX_CHARS = 5000
 
@@ -32,7 +34,7 @@ function App() {
     }
     
     try {
-      const response = await aiService.processCode({ code, action })
+      const response = await aiService.processCode({ code, action, endpoint: config.endpoint || undefined, apiKey: config.apiKey || undefined, model: config.model || undefined })
       setResult(response)
     } catch (err) {
       setError('Failed to process code. Please check if Ollama is running on localhost:11434.')
@@ -57,6 +59,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors duration-300">
       <ThemeToggle />
+      <ModelConfig config={config} setConfig={setConfig} />
       
       {/* Header */}
       <div className="container mx-auto px-4 py-8 max-w-6xl">
