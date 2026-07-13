@@ -1,6 +1,8 @@
 using AICodeAssistant.Api.Models;
 using AICodeAssistant.Api.Services;
+using AICodeAssistant.Api.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace AICodeAssistant.Api.Controllers;
 

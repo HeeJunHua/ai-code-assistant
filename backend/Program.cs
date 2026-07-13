@@ -1,9 +1,14 @@
 using AICodeAssistant.Api.Services;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using AICodeAssistant.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 builder.Services.AddControllers();
 
 // Configure CORS
@@ -29,6 +34,7 @@ builder.Services.AddHttpClient<IAIService, AIService>((provider, client) =>
 });
 
 builder.Services.AddScoped<IAIService, AIService>();
+builder.Services.AddScoped<IQueryLogService, QueryLogService>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

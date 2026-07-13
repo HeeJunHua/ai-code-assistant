@@ -1,75 +1,72 @@
 # AI Code Assistant
 
-A smart web application that helps you understand, improve, and optimize your code using artificial intelligence.
+An intelligent AI-powered assistant designed to help developers explain, fix, and optimize their code. This project demonstrates the integration of Large Language Models (LLMs) into a developer workflow via a clean, decoupled architecture.
 
-## What It Does
+## 🚀 Features
+- **Code Analysis**: Get explanations for complex code snippets.
+- **Bug Fixing**: Automatically identify and fix bugs in your code.
+- **Performance Optimization**: Receive suggestions to make your code more efficient.
+- **Provider Agnostic**: Supports Ollama (local) and any OpenAI-compatible API endpoints.
+- **Query Logging**: Full persistence of every input and output for audit and quality analysis.
 
-Simply paste your code into the application and choose what you need:
+## 🏗️ Architecture
 
-- **Explain**: Get a clear explanation of what your code does
-- **Fix**: Receive suggestions for fixing issues and bugs
-- **Optimize**: Get recommendations to make your code faster and more efficient
+### Backend (.NET 10.0 Web API)
+The backend is built with a service-oriented architecture:
+- **AIController**: Handles HTTP requests, input validation, and response formatting.
+- **AIService**: Orchestrates the communication with AI providers (Ollama/OpenAI).
+- **QueryLogService**: Manages the persistence of AI interactions in a SQL database.
+- **AppDbContext**: Entity Framework Core context for SQLite persistence.
 
-The AI analyzes your code and provides helpful, detailed responses in seconds.
+### Frontend (React)
+- A modern user interface providing a seamless experience for interacting with the AI.
 
-## Features
+### Data Flow
+`User Request` $\rightarrow$ `AIController` $\rightarrow$ `AIService` $\rightarrow$ `AI Provider` $\rightarrow$ `AIService` $\rightarrow$ `QueryLogService (Save to DB)` $\rightarrow$ `User Response`
 
-- Clean, modern interface that's easy to use
-- Fast AI-powered code analysis
-- Support for multiple programming languages
-- Real-time processing with loading indicators
-- Clear error messages and feedback
+## 🛠️ Technical Stack
+- **Language**: C# (.NET 10.0)
+- **Database**: SQLite (via EF Core)
+- **AI Integration**: Ollama API, OpenAI-compatible APIs
+- **Frontend**: React.js
 
-## Getting Started
+## 💎 Value Proposition & Engineering Decisions
+
+### 1. Observability & Quality Assurance
+By implementing the `QueryLogs` system, the application moves from a stateless tool to a data-driven system. This allows for:
+- **Error Analysis**: Tracking where the AI fails to provide helpful responses.
+- **Model Benchmarking**: Comparing different LLMs (e.g., Llama 3 vs. GPT-4) based on real-world user data.
+- **Feedback Loop**: Creating a dataset for future fine-tuning (RLHF).
+
+### 2. Security-First Design
+Sensitive information, such as API keys used for custom endpoints, is handled in memory and **never persisted** to the database, ensuring that the log remains a safe audit trail.
+
+### 3. Portability
+The use of SQLite ensures that the entire project is "plug-and-play," requiring no external database installation for reviewers or interviewers.
+
+## 🗺️ Technical Roadmap
+- [x] Core AI Integration (Ollama & Custom Endpoints)
+- [x] SQL Persistence for Query Logging
+- [ ] **Caching Layer**: Implement Redis or in-memory caching to avoid redundant AI calls for identical requests.
+- [ ] **History Dashboard**: A frontend view to browse and analyze past queries.
+- [ ] **Semantic Search**: Integrating a vector database (e.g., pgvector) to find similar past issues and their resolutions.
+- [ ] **User Authentication**: Adding multi-user support with personalized history.
+
+## 🏁 Getting Started
 
 ### Prerequisites
-
 - Node.js and npm (for the frontend)
 - .NET SDK (for the backend)
 - Ollama (for AI processing)
 
 ### Quick Start
-
 1. **Start the backend** (from the `backend` folder):
    ```bash
    dotnet run
    ```
-
 2. **Start the frontend** (from the `frontend` folder):
    ```bash
    npm install
    npm run dev
    ```
-
 3. Open your browser to `http://localhost:3000`
-
-## How to Use
-
-1. Open the application in your browser
-2. Paste your code into the text area
-3. Click one of the action buttons:
-   - **Explain** - to understand the code
-   - **Fix** - to get debugging help
-   - **Optimize** - to improve performance
-4. Wait a moment for the AI to analyze your code
-5. Read the response in the output panel
-
-## Technology
-
-- **Frontend**: React with TypeScript and Tailwind CSS
-- **Backend**: ASP.NET Core Web API
-- **AI**: Ollama (local AI processing)
-
-## Requirements
-
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- Internet connection (for downloading dependencies)
-- Ollama installed and running locally
-
-## Contributing
-
-This is a personal project, but feel free to use it as inspiration for your own projects!
-
-## License
-
-MIT License - feel free to use this code for your own projects.
